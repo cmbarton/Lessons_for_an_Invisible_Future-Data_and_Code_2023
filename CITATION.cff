@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+type: dataset
+message: "If you use this dataset, please cite it as below."
+authors:
+- family-names: "Barton"
+  given-names: "C Michael"
+  orcid: "http://orcid.org/0000-0003-2561-1927"
+  orcid: "0000-0002-5742-8708"
+- family-names: "Aura Tortosa"
+  given-names: "J Emili"
+- family-names: "Garcia Puchol"
+  given-names: "Oreto"
+  orcid: "0000-0001-9716-6039"
+- family-names: "Riel-Salvatore"
+  given-names: "Julien"
+  orcid: "0000-0001-8418-0958"
+- family-names: "Ullah"
+  given-names: "Isaac"
+  orcid: "0000-0002-3533-9421"
+title: "Risk and Resilience in Deep Time: Data Files and Analysis Scripts"
+version: 1.0
+doi:
+date-released:
+url: "https://github.com/cmbarton/Risk-Resilience_Holocene2023"

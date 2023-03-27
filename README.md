@@ -1,4 +1,4 @@
-# Risk&Resilience_Holocene2023
+# Risk and Resilience in Deep Time: Data Files and Analysis Scripts
 
 This repository holds the data files and analysis scripts used for the case studies in the paper:
 
@@ -8,4 +8,4 @@ It includes csv data files, RMarkdown script (using R version 4.2), and an HTML 
 
 The data and script are copyrighted (c) 2023 by C Michael Barton, Arizona State University. They are openly available for reuse under an MIT license.
 
-See the Citation file for this repository for proper citation. 
+See the Citation file for this repository for proper citation.
