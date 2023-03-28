@@ -1,0 +1,315 @@
+---
+title: "Risk and Resilience in Deep Time"
+subtitle: "Analysis Scripts for Paper Published in _Holocene_"
+author: "C Michael Barton, Arizona State University"
+date: "2023-03-27"
+output: html_notebook
+---
+
+Set up libraries
+```{r setup, include=FALSE, echo=T}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rcarbon)
+library(scales)
+library(parallel)
+
+ncores <- detectCores()
+options(Ncpus = ncores)
+```
+
+
+Load data
+```{r load data, echo=T}
+c14dates <- read_csv("c14dates.csv")
+
+Hominin_demography <- read_csv("Hominin_demography.csv", 
+                               col_types = cols(...1 = col_integer(), 
+                                                home.range.radius = col_integer(), 
+                                                population = col_integer()))
+Hominin_demography <- Hominin_demography %>% 
+  mutate(phenotype = recode(phenotype, 
+                            "1 MM"="MM", 
+                            "2 M-type"="M-type", 
+                            "3 hybrid"="MN", 
+                            "4 N-type"="N-type", 
+                            "5 NN"="NN"), 
+         Fitness = recode(Fitness, 
+                          "hybrid higher mortality"="MN higher mortality", 
+                          "hybrid lower fertility"="MN lower fertility", 
+                          "hybrid lower mortality"="MN lower mortality")) %>% 
+  mutate(phenotype = factor(phenotype, levels = c("MM", "M-type", "MN", "N-type", "NN")))
+
+Hominin_demography_trajectory <- read_csv("Hominin_demography_trajectories.csv")
+Hominin_demography_trajectory <- Hominin_demography_trajectory %>% 
+  select(M.type.x, ends_with(".y")) %>% 
+  rename(step = M.type.x, 
+         "M-Type" = M.type.y, 
+         "N-Type" = N.type.y, 
+         MN = hybrid.y,
+         MM = MM.y, 
+         NN = NN.y) %>% 
+  pivot_longer(2:6, names_to = "phenotype", values_to = "population") %>% 
+  mutate(phenotype = factor(phenotype, levels = c("MM", "M-Type", "MN", "N-Type", "NN")))
+
+icecores <- read_csv("icecores.csv")
+
+rr.papers <- read_csv("rr_papers.csv")
+
+```
+
+### Figure 1: Journal Publications
+
+```{r bibliometrics, echo=T, fig.width=10, fig.height=5}
+rr.papers %>% 
+  ggplot(aes(x=years)) + 
+  geom_path(aes(y=JAS.risk/JAS.papers, color='Journal of Archaeological Science', lty='risk'), group=1, lwd=1.5) + 
+  geom_path(aes(y=JAS.resilience/JAS.papers, color='Journal of Archaeological Science', lty='resilience'), group=1, lwd=1.5) + 
+  geom_path(aes(y=Antiquity.risk/Antiquity.papers, color='Antiquity', lty='risk'), group=1, lwd=1.5) + 
+  geom_path(aes(y=Antiquity.resilience/Antiquity.papers, color='Antiquity', lty='resilience'), group=1, lwd=1.5) + 
+  scale_y_continuous(labels = scales::percent) + 
+  scale_color_manual(values = c('Journal of Archaeological Science' = 'red', 'Antiquity' = 'blue')) + 
+  scale_linetype_manual(values = c('risk' = 'solid', 'resilience' = 'dashed')) + 
+  labs(title = "Papers Mentioning Risk or Resilience", 
+       subtitle = "Change in Past 40 Years", 
+       x="5-year intervals", 
+       y="% of papers published", 
+       color='journal:', 
+       linetype='topic:') + 
+  theme_bw(base_size = 30) + 
+  theme(legend.position = 'bottom', legend.key.width =  unit(50, "points"))
+```
+
+
+## Modeling Biocultural Interaction
+
+### Figure 2: NGRIP2 and GISP2 entire cores
+
+```{r NGRIP2&GISP2, warning=FALSE, message=FALSE, fig.width=9, fig.height=3}
+icecores %>%
+  ggplot() + 
+  geom_line(aes(x=years.BP, y=d18O.GISP2.ppt), color='red', lwd=0.3) + 
+  geom_line(aes(x=years.BP, y=d18O.NGRIP2.ppt), color='blue', lwd=0.3) + 
+#  geom_smooth(aes(x=years.BP, y=d18O.NGRIP2.ppt, color='ngrip2', lty='ngrip2'), method='loess', span=.07, se=FALSE, lwd = 1.5)  + 
+  scale_x_reverse() + 
+  geom_vline(xintercept = c(119000, 11650), color = "grey", lwd = 1.5) + 
+  #scale_x_continuous(breaks=c(19000,14000,10000), labels = c("19000","14000","10000"), trans = "reverse") + 
+  #geom_vline(xintercept = c(19000,14000,10000), lty='dashed', lwd=0.3) + 
+  labs(x="years cal BP", 
+       y="delta O18\ncolder << — >> warmer", 
+       title="NGRIP2 (blue) & GISP2 (red) Greenland Ice Cores") +
+  theme_bw(base_size = 24)
+```
+
+### Figure 3: Box Plots with Condensed Fitness Categories
+
+```{r echo=T, fig.width=12, fig.height=12}
+Hominin_demography %>% 
+  mutate(fitness.aggregated = Fitness, 
+         fitness.aggregated = recode(fitness.aggregated, 
+                                     "birthrate=deathrate"="equal fitness", 
+                                     "birthrate>deathrate"="equal fitness", 
+                                     "MM higher mortality"="MM less fit", 
+                                     "MM lower fertility"="MM less fit", 
+                                     "MM lower mortality"="MM more fit", 
+                                     "MN higher mortality"="MN less fit", 
+                                     "MN lower fertility"="MN less fit", 
+                                     "MN lower mortality"="MN more fit", 
+                                     "NN higher mortality"="NN less fit", 
+                                     "NN lower fertility"="NN less fit", 
+                                     "NN lower mortality"="NN more fit"),
+         fitness.aggregated = factor(fitness.aggregated, 
+                                     levels = c(
+                                       "equal fitness", 
+                                       "MM less fit", 
+                                       "MM more fit", 
+                                       "MN less fit", 
+                                       "MN more fit", 
+                                       "NN less fit", 
+                                       "NN more fit"))) %>% 
+  ggplot(aes(x=phenotype, y=population)) + 
+  geom_boxplot(fill="grey") + 
+  facet_grid(fitness.aggregated~factor(home.range.radius), scales="free_y") + 
+  labs(x="agent phenotype", y="population at end of simulation") + 
+  theme_bw(base_size = 16)
+```
+
+### Figure 4: Example Model Trajectory with Logistical Foraging (Foraging Radius=12)
+
+```{r echo=T, fig.width=10, fig.height=5}
+Hominin_demography_trajectory %>% 
+  ggplot(aes(y=population, x=step)) + 
+  geom_line(aes(color=phenotype), size=2) +
+  scale_color_manual(values = c("red", "orange", "grey", "green", "blue")) + 
+  labs(x="model step", y="population", color="agent phenotype") + 
+  theme_bw(base_size = 16) + 
+  theme(legend.position="bottom")
+```
+
+## Demographic Dynamics of West Mediterranean
+
+### Figure 5a: NGRIP and GISP for LGM to Holocene
+
+```{r Late Pleistocene ice cores, echo=T, warning=FALSE, message=FALSE, fig.width=12, fig.height=5}
+icecores %>% dplyr::filter(years.BP<=35000 & years.BP>=8000) %>% 
+  ggplot() + 
+  geom_line(aes(x=years.BP, y=d18O.GISP2.ppt), color='red', lwd=.2, alpha=.5) + 
+  geom_line(aes(x=years.BP, y=d18O.NGRIP2.ppt), color='blue', lwd=.2, alpha=.5) + 
+  geom_smooth(aes(x=years.BP, y=d18O.GISP2.ppt, color='gisp2', lty='gisp2'), method='loess', span=.07, se=FALSE, lwd = 1) + 
+  geom_smooth(aes(x=years.BP, y=d18O.NGRIP2.ppt, color='ngrip2', lty='ngrip2'), method='loess', span=.07, se=FALSE, lwd = 1)  + 
+  scale_colour_manual(name=NULL, values =c('gisp2'='red','ngrip2'='blue'), labels = c('GISP2','NGRIP2')) + 
+  scale_linetype_manual(name=NULL, values =c('gisp2'='solid','ngrip2'='solid'), labels = c('GISP2','NGRIP2')) + 
+  scale_x_reverse() + 
+  #scale_x_continuous(breaks=c(19000,14000,10000), labels = c("19000","14000","10000"), trans = "reverse") + 
+  #geom_vline(xintercept = c(19000,14000,10000), lty='dashed', lwd=0.3) + 
+  labs(x="years cal BP", 
+       y="delta O18\ncolder << — >> warmer", 
+       color="Cores",
+       title="Paleoclimate Proxies from Greenland Ice Cores") +
+  theme_minimal(base_size = 18) + 
+  theme(legend.position=c(.95,.15), 
+        plot.title = element_text(face = "bold", hjust = 0.5), 
+        #axis.text.y = element_text(hjust = -5),
+        #panel.grid.major.y = element_blank(),
+        #plot.margin = margin(l=30, r=20, t=20, b=20)
+        )
+```
+
+
+### Figure 5b: Summed Probability Distribution (SPD) of Radiocarbon Dates in the West Mediterranean
+
+#### Calibrate dates
+
+```{r calibrate dates, message=FALSE, warning=FALSE, echo=T, results="hide"}
+c14dates$BP.cal.median <- c14dates %>% 
+  with(., calibrate(x=C14.mean, errors=C14.SD, calCurves = calib.curve, normalised=TRUE, calMatrix=FALSE)) %>% 
+  medCal()
+```
+
+
+#### Calculate SPD
+
+```{r SPD-all, message=FALSE, warning=FALSE, echo=T, results="hide"}
+date.bins <- c14dates %>% 
+  dplyr::filter(calib.curve != "normal") %>%  
+  with(., binPrep(site, C14.mean, 100))
+
+model.all <- c14dates %>% 
+  dplyr::filter(calib.curve != "normal") %>%  
+  with(., calibrate(x=C14.mean, errors=C14.SD, calCurves = calib.curve, normalised=TRUE, calMatrix=FALSE)) %>% 
+  modelTest(., 
+            errors = c14dates$C14.SD, 
+            timeRange = c(38000,5000), 
+            runm = 500, 
+            model="exponential", 
+            datenormalised=TRUE, 
+            nsim = 200, 
+            ncores = ncores,
+            method = 'calsample', 
+            bins = date.bins)
+```
+
+
+#### Graph SPD
+
+```{r SPD-all graph, fig.height=5, fig.width=12, message=FALSE, warning=FALSE, echo=T, results="hide"}
+par(mar=c(7,10,7,3))
+plot(model.all, xlim = c(35000,8000), col.obs = 'red', lwd.obs = 3, drawaxes = F)
+axis(1, cex.axis = 1, pos = -.0006)
+axis(2, cex.axis = 1, pos = 35500)
+mtext(side=1, line=3, "years cal BP", cex=1.3)
+mtext(side=2, line=4, "summed probability", cex=1.3)
+title(main=paste("West Mediterranean Late Pleistocene Assemblages (N = ", nrow(subset(c14dates, calib.curve != "normal")), ")"), cex.main = 1.5)
+```
+
+
+
+### Figure 5c: SPDs of Aggregated Technocomplexes
+
+#### Classify aggregated technocomplexes
+
+```{r classifiy technocomplexes, message=FALSE, warning=FALSE, echo=T, results="hide"}
+c14dates <- c14dates %>% 
+  mutate(industry.group = 
+           case_when(
+             str_detect(tolower(industry), "aurig") ~ "Aurignacian", 
+             str_detect(tolower(industry), "gdrav") ~ "Gravettian",  
+             str_detect(tolower(industry), "solut") ~ "Solutrean",
+             str_detect(tolower(industry), "middle solutrean") ~ "Solutrean", 
+             str_detect(tolower(industry), "salp") ~ "Solutrean",              
+             str_detect(tolower(industry), "epig") ~ "Magdalenian",  
+             str_detect(tolower(industry), "epi-gr") ~ "Magdalenian",
+             str_detect(tolower(industry), "eppig") ~ "Magdalenian",
+             str_detect(tolower(industry), "eppgr") ~ "Magdalenian",
+             str_detect(tolower(industry), "apig") ~ "Magdalenian",
+             str_detect(tolower(industry), "magd") ~ "Magdalenian",
+             str_detect(tolower(industry), "badeg") ~ "Magdalenian",
+             str_detect(tolower(industry), "gravet") ~ "Gravettian",  
+             str_detect(tolower(industry), "gravt") ~ "Gravettian",  
+             str_detect(tolower(industry), "azil") ~ "Epipaleolithic", 
+             str_detect(tolower(industry), "romanell") ~ "Epipaleolithic", 
+             str_detect(tolower(industry), "epipal") ~ "Epipaleolithic", 
+             str_detect(tolower(industry), "mesol") ~ "Mesolithic", 
+             str_detect(tolower(industry), "sauve") ~ "Mesolithic", 
+             str_detect(tolower(industry), "tarden") ~ "Mesolithic", 
+             str_detect(tolower(industry), "montcl") ~ "Mesolithic", 
+             str_detect(tolower(industry), "montad") ~ "Mesolithic", 
+             str_detect(tolower(industry), "castel") ~ "Mesolithic"
+             ), 
+         industry.group = factor(industry.group, 
+                                 levels = c("Aurignacian", 
+                                            "Gravettian", 
+                                            "Solutrean", 
+                                            "Magdalenian", 
+                                            "Epipaleolithic", 
+                                            "Mesolithic")),
+         .after=industry)
+```
+
+
+#### Calculate SPDs of aggregated technocomplexes
+
+```{r SPD-industries, message=FALSE, warning=FALSE, echo=T, results="hide"}
+c14dates.industry.group <- c14dates %>% 
+  dplyr::filter(!is.na(industry.group) & calib.curve != "normal")
+
+c14dates.industry.group <- c14dates.industry.group[order(c14dates.industry.group$industry.group), ]
+
+date.bins <-  c14dates.industry.group %>% 
+  with(., binPrep(site, C14.mean, 100))
+
+stacked.spd <- c14dates.industry.group %>% 
+  with(., calibrate(x=C14.mean, errors=C14.SD, calCurves = calib.curve, normalised=TRUE, calMatrix=FALSE)) %>% 
+  stackspd(timeRange=c(35000,8000), 
+           bins=date.bins,
+           group=c14dates.industry.group$industry.group, 
+           runm = 500, 
+           datenormalised=TRUE)
+```
+
+
+#### Graph SPDs
+
+```{r SPD-industries graph, fig.width=12, fig.height=6, echo=T}
+par(mar=c(7,10,7,3))
+options(digits = 7)
+plot(stacked.spd, 
+     xlim = c(35000,8000), 
+     rescale = T, 
+     spdnormalised = F, 
+     type = "multipanel", 
+     lwd.obs = .5, 
+     runm = NA, 
+     cex.lab = 1.3, 
+     cex.axis = 1, 
+     ylab = "summed probability\n", 
+     xlab = "years cal BP",
+     ymargin = 1, 
+     gapFactor = .4, 
+     legend.arg=list("topleft", bty = "n", horiz = T, cex = 1))
+#axis(1, cex.axis = 2, pos = -.0006)
+#axis(2, cex.axis = 2, pos = 35500)
+#mtext(side=1, line=5, "years cal BP", cex=2.5)
+#mtext(side=2, line=6, "summed probability", cex=2.5)
+title(main=paste("West Mediterranean Late Pleistocene Technocomplexes (N = ", nrow(c14dates.industry.group), ")"), cex.main = 1.5)
+```
