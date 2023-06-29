@@ -96,7 +96,7 @@ icecores %>%
   scale_linetype_manual(name=NULL, values =c('gisp2'='solid','ngrip2'='solid'), labels = c('GISP2','NGRIP2')) + 
   scale_x_reverse() + 
   #scale_x_continuous(breaks=c(19000,14000,10000), labels = c("19000","14000","10000"), trans = "reverse") + 
-  geom_vline(xintercept = c(27000,22000,11000), lty='dashed', lwd=0.3) + 
+  geom_vline(xintercept = c(27000,22000,11000), lty='dashed', lwd=1) + 
   labs(x="years cal BP", 
        y="delta O18\ncolder << — >> warmer", 
        color="Cores",
@@ -154,32 +154,8 @@ Hominin_demography_trajectory %>%
 
 ## Demographic Dynamics of West Mediterranean
 
-### Figure 5a: NGRIP and GISP for LGM to Holocene
 
-```{r Late Pleistocene ice cores, echo=T, warning=FALSE, message=FALSE, fig.width=12, fig.height=5}
-icecores %>% dplyr::filter(years.BP<=35000 & years.BP>=8000) %>% 
-  ggplot() + 
-  geom_line(aes(x=years.BP, y=d18O.GISP2.ppt), color='red', lwd=.2, alpha=.5) + 
-  geom_line(aes(x=years.BP, y=d18O.NGRIP2.ppt), color='blue', lwd=.2, alpha=.5) + 
-  geom_smooth(aes(x=years.BP, y=d18O.GISP2.ppt, color='gisp2', lty='gisp2'), method='loess', span=.07, se=FALSE, lwd = 1) + 
-  geom_smooth(aes(x=years.BP, y=d18O.NGRIP2.ppt, color='ngrip2', lty='ngrip2'), method='loess', span=.07, se=FALSE, lwd = 1)  + 
-  scale_colour_manual(name=NULL, values =c('gisp2'='red','ngrip2'='blue'), labels = c('GISP2','NGRIP2')) + 
-  scale_linetype_manual(name=NULL, values =c('gisp2'='solid','ngrip2'='solid'), labels = c('GISP2','NGRIP2')) + 
-  scale_x_reverse() + 
-  #scale_x_continuous(breaks=c(19000,14000,10000), labels = c("19000","14000","10000"), trans = "reverse") + 
-  #geom_vline(xintercept = c(19000,14000,10000), lty='dashed', lwd=0.3) + 
-  labs(x="years cal BP", 
-       y="delta O18\ncolder << — >> warmer", 
-       color="Cores",
-       title="Paleoclimate Proxies from Greenland Ice Cores") +
-  theme_minimal(base_size = 18) + 
-  theme(legend.position="none", 
-        plot.title = element_text(face = "bold", hjust = 0.5), 
-        )
-```
-
-
-### Figure 5b: Summed Probability Distribution (SPD) of Radiocarbon Dates in the West Mediterranean
+### Figure 5a: Summed Probability Distribution (SPD) of Radiocarbon Dates in the West Mediterranean
 
 #### Calibrate dates
 
@@ -190,7 +166,8 @@ c14dates$BP.cal.median <- c14dates %>%
 ```
 
 
-#### Calculate SPD
+#### Calculate SPD for entire region
+Dates file filtered to remove all date with COV > 0.1
 
 ```{r SPD-all, message=FALSE, warning=FALSE, echo=FALSE, results="hide"}
 date.bins <- c14dates %>% 
@@ -229,11 +206,11 @@ title(main=paste("West Mediterranean Late Pleistocene Assemblages (N = ", nrow(s
 
 
 
-### Figure 5c: SPDs of Aggregated Technocomplexes
+### Figure 5b: SPD Permutation Test of Aggregated Technocomplexes
 
 #### Classify aggregated technocomplexes
 
-```{r classifiy technocomplexes, message=FALSE, warning=FALSE, echo=T, results="hide"}
+```{r classifiy technocomplexes, message=FALSE, warning=FALSE, echo=T, results='hide'}
 c14dates <- c14dates %>% 
   mutate(industry.group = 
            case_when(
@@ -272,55 +249,10 @@ c14dates <- c14dates %>%
 ```
 
 
-#### Calculate SPDs of aggregated technocomplexes
 
-```{r SPD-industries, message=FALSE, warning=FALSE, echo=T, results="hide"}
-c14dates.industry.group <- c14dates %>% 
-  dplyr::filter(!is.na(industry.group) & calib.curve != "normal")
-
-c14dates.industry.group <- c14dates.industry.group[order(c14dates.industry.group$industry.group), ]
-
-date.bins <-  c14dates.industry.group %>% 
-  with(., binPrep(site, C14.mean, 200))
-
-stacked.spd <- c14dates.industry.group %>% 
-  with(., calibrate(x=C14.mean, errors=C14.SD, calCurves = calib.curve, normalised=TRUE, calMatrix=FALSE)) %>% 
-  stackspd(timeRange=c(40000,7000), 
-           bins=date.bins,
-           group=c14dates.industry.group$industry.group, 
-           runm = 500, 
-           datenormalised=TRUE)
-```
-
-
-#### Graph SPDs
-
-```{r SPD-industries graph, fig.width=12, fig.height=6, echo=T}
-par(mar=c(7,10,7,3))
-options(digits = 7)
-plot(stacked.spd, 
-     xlim = c(35000,7500), 
-     rescale = T, 
-     spdnormalised = F, 
-     type = "multipanel", 
-     lwd.obs = .5, 
-     runm = NA, 
-     cex.lab = 1.3, 
-     cex.axis = 1, 
-     ylab = "summed probability\n", 
-     xlab = "years cal BP",
-     ymargin = 1, 
-     gapFactor = .4, 
-     legend.arg=list("topleft", bty = "n", horiz = T, cex = 1))
-#axis(1, cex.axis = 2, pos = -.0006)
-#axis(2, cex.axis = 2, pos = 35500)
-#mtext(side=1, line=5, "years cal BP", cex=2.5)
-#mtext(side=2, line=6, "summed probability", cex=2.5)
-title(main=paste("West Mediterranean Late Pleistocene Technocomplexes (N = ", nrow(c14dates.industry.group), ")"), cex.main = 1.5)
-```
 #### Permutation test of aggregated technocomplexes
 
-```{r SPD-perm-industries, message=FALSE, warning=FALSE, echo=FALSE, results="hide"}
+```{r SPD-perm-industries, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
 c14dates.industry.group <- c14dates %>% 
   dplyr::filter(!is.na(industry.group) & calib.curve != "normal")
 
@@ -339,15 +271,21 @@ perm.test <- c14dates.industry.group %>%
            datenormalised=TRUE)
 ```
 
+#### Permutation test results
+```{r SPD-perm-industries-results, message=FALSE, warning=FALSE}
+summary(perm.test)
+```
+
 
 #### Graph Permutations
 
-```{r SPD-perm-industries graph, fig.width=12, fig.height=3, echo=T}
+```{r SPD-perm-industries graph, fig.width=12, fig.height=3, echo=TRUE, warning=FALSE, results='hide', message=FALSE}
 plot(perm.test, 
      focalm = "Aurignacian", 
      xlim = c(35000,8000), 
      col.obs = 'red', 
      lwd.obs = 3,
+     bbty = 'b', 
      ylim = c(0, 0.04),
      drawaxes = F)
   axis(1, cex.axis = 1, pos = -.0006)
@@ -361,6 +299,7 @@ plot(perm.test,
      xlim = c(35000,8000), 
      col.obs = 'red', 
      lwd.obs = 3,
+     bbty = 'b', 
      ylim = c(0, 0.04),
      drawaxes = F)
   axis(1, cex.axis = 1, pos = -.0006)
@@ -374,6 +313,7 @@ plot(perm.test,
      xlim = c(35000,8000), 
      col.obs = 'red', 
      lwd.obs = 3,
+     bbty = 'b', 
      ylim = c(0, 0.04),
      drawaxes = F)
   axis(1, cex.axis = 1, pos = -.0006)
@@ -387,6 +327,7 @@ plot(perm.test,
      xlim = c(35000,8000), 
      col.obs = 'red', 
      lwd.obs = 3,
+     bbty = 'b', 
      ylim = c(0, 0.1),
      drawaxes = F)
   axis(1, cex.axis = 1, pos = -.0006)
@@ -400,6 +341,7 @@ plot(perm.test,
      xlim = c(35000,8000), 
      col.obs = 'red', 
      lwd.obs = 3,
+     bbty = 'b', 
      ylim = c(0, 0.04),
      drawaxes = F)
   axis(1, cex.axis = 1, pos = -.0006)
@@ -413,6 +355,7 @@ plot(perm.test,
      xlim = c(35000,8000), 
      col.obs = 'red', 
      lwd.obs = 3,
+     bbty = 'b', 
      ylim = c(0, 0.12), 
      drawaxes = F)
   axis(1, cex.axis = 1, pos = -.0006)
@@ -422,75 +365,3 @@ plot(perm.test,
   title(main=paste("Mesolithic (N = ", nrow(subset(c14dates, industry.group == "Mesolithic")), ")"), cex.main = 1.5)
 ```
 
-#### Permutation by region
-
-```{r SPD-perm-region, message=FALSE, warning=FALSE, echo=FALSE, results="hide"}
-date.bins <-  c14dates %>% 
-  with(., binPrep(site, C14.mean, 200))
-
-perm.test <- c14dates %>% 
-  with(., calibrate(x=C14.mean, errors=C14.SD, calCurves = calib.curve, normalised=TRUE, calMatrix=FALSE)) %>% 
-  permTest(timeRange=c(40000,7000), 
-           bins=date.bins,
-           marks=c14dates$region, 
-           nsim = 200, 
-           runm = 500, 
-           datenormalised=TRUE)
-```
-
-#### Graph Permutations
-
-```{r SPD-perm-region graph, fig.width=12, fig.height=4, echo=T}
-plot(perm.test, 
-     focalm = "Southwest", 
-     xlim = c(35000,8000), 
-     col.obs = 'red', 
-     lwd.obs = 3,
-     ylim = c(0, 0.04),
-     drawaxes = F)
-  axis(1, cex.axis = 1, pos = -.0006)
-  axis(2, cex.axis = 1, pos = 35500)
-  mtext(side=1, line=3, "years cal BP", cex=1.3)
-  mtext(side=2, line=4, "summed probability", cex=1.3)
-  title(main=paste("Southwest (N = ", nrow(subset(c14dates, region == "Southwest")), ")"), cex.main = 1.5)
- 
-plot(perm.test, 
-     focalm = "N Central", 
-     xlim = c(35000,8000), 
-     col.obs = 'red', 
-     lwd.obs = 3,
-     ylim = c(0, 0.1),
-     drawaxes = F)
-  axis(1, cex.axis = 1, pos = -.0006)
-  axis(2, cex.axis = 1, pos = 35500)
-  mtext(side=1, line=3, "years cal BP", cex=1.3)
-  mtext(side=2, line=4, "summed probability", cex=1.3)
-  title(main=paste("North Central (N = ", nrow(subset(c14dates, region == "N Central")), ")"), cex.main = 1.5)
-  
-plot(perm.test, 
-     focalm = "Northeast", 
-     xlim = c(35000,8000), 
-     col.obs = 'red', 
-     lwd.obs = 3,
-     ylim = c(0, 0.04),
-     drawaxes = F)
-  axis(1, cex.axis = 1, pos = -.0006)
-  axis(2, cex.axis = 1, pos = 35500)
-  mtext(side=1, line=3, "years cal BP", cex=1.3)
-  mtext(side=2, line=4, "summed probability", cex=1.3)
-  title(main=paste("Northeast (N = ", nrow(subset(c14dates, region == "Northeast")), ")"), cex.main = 1.5)
-  
-plot(perm.test, 
-     focalm = "Southeast", 
-     xlim = c(35000,8000), 
-     col.obs = 'red', 
-     lwd.obs = 3,
-     ylim = c(0, 0.04),
-     drawaxes = F)
-  axis(1, cex.axis = 1, pos = -.0006)
-  axis(2, cex.axis = 1, pos = 35500)
-  mtext(side=1, line=3, "years cal BP", cex=1.3)
-  mtext(side=2, line=4, "summed probability", cex=1.3)
-  title(main=paste("Southeast (N = ", nrow(subset(c14dates, region == "Southeast")), ")"), cex.main = 1.5)
-  
-```
