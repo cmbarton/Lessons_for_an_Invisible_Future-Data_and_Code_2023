@@ -1,4 +1,4 @@
-# Risk and Resilience in Deep Time: Data Files and Analysis Scripts
+# Lessons for an Invisible Future - Data Files and Analysis Scripts
 
 This repository holds the data files and analysis scripts used for the case studies in the paper:
 
